@@ -1,0 +1,7 @@
+fastapi
+uvicorn[standard]
+yt-dlp[default]   # [default] includes yt-dlp-ejs, the YouTube JS challenge solver
+deno             # JS runtime for the solver (static binary, no system install needed)
+python-dotenv
+a2wsgi
+imageio-ffmpeg
