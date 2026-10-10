@@ -1,4 +1,4 @@
-' Starts the Video Downloader server hidden (no console window).
+' Starts the PluckReel server hidden (no console window).
 ' Safe to run repeatedly: run_local.py exits at once if the server is already up.
 Set fso = CreateObject("Scripting.FileSystemObject")
 serverDir = fso.GetParentFolderName(fso.GetParentFolderName(WScript.ScriptFullName)) & "\server"

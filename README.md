@@ -1,4 +1,4 @@
-# Video Downloader
+# PluckReel
 
 Paste a link from YouTube, TikTok, Instagram, Facebook, X, LinkedIn or Vimeo and download the
 video in any available quality, or just the audio.

@@ -1,4 +1,4 @@
-# Video Downloader backend (FastAPI + yt-dlp)
+# PluckReel backend (FastAPI + yt-dlp)
 
 Serves `/api/*` and the built React app from one process, so UI and API share a domain.
 
@@ -25,7 +25,7 @@ Scripts in `../local/`:
 
 | Script                   | What it does                                                  |
 | ------------------------ | ------------------------------------------------------------- |
-| `Video Downloader.bat`   | Starts the server if needed and opens the app in your browser |
+| `PluckReel.bat`          | Starts the server if needed and opens the app in your browser |
 | `enable-autostart.bat`   | Starts the server hidden at every Windows login               |
 | `disable-autostart.bat`  | Removes the login autostart                                   |
 | `stop-server.bat`        | Stops the background server                                   |

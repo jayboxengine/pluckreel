@@ -209,7 +209,7 @@ export default function VideoDownloader() {
       <header className="vd-nav">
         <div className="vd-logo">
           <span className="vd-logo-mark"><Svg name="download" size={16} /></span>
-          Video Downloader
+          PluckReel
         </div>
       </header>
 
