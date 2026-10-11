@@ -1,0 +1,10 @@
+[Unit]
+Description=Update yt-dlp for PluckReel (sites change often)
+
+[Service]
+Type=oneshot
+User=pluckreel
+WorkingDirectory=/opt/pluckreel/server
+ExecStart=/opt/pluckreel/server/.venv/bin/pip install -q --upgrade "yt-dlp[default]"
+# Restart the app so it loads the new yt-dlp (runs as root via the + prefix).
+ExecStartPost=+/bin/systemctl restart pluckreel.service

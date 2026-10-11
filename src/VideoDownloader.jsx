@@ -122,6 +122,7 @@ export default function VideoDownloader() {
   const [fetchedUrl, setFetchedUrl] = useState('')
   const [tab, setTab] = useState('video')
   const [preparing, setPreparing] = useState(null)
+  const [dlError, setDlError] = useState('')
   const lastRequested = useRef('')
   const abortRef = useRef(null)
   const inputRef = useRef(null)
@@ -137,6 +138,7 @@ export default function VideoDownloader() {
     abortRef.current = ctrl
     setStatus('loading')
     setError('')
+    setDlError('')
     setInfo(null)
     try {
       const res = await fetch('/api/info', {
@@ -187,14 +189,31 @@ export default function VideoDownloader() {
     }
   }
 
-  const startDownload = (id) => {
-    setPreparing(id)
-    setTimeout(() => setPreparing((cur) => (cur === id ? null : cur)), 8000)
-  }
-
-  const downloadHref = (f) => {
-    const params = new URLSearchParams({ url: fetchedUrl, title: info.title, ext: f.ext })
-    return `/api/download/${encodeURIComponent(f.id)}?${params}`
+  // Reserve a download slot first, so "busy" / "rate limited" show here as messages instead of
+  // as a failed file in the browser's download bar; then hand the one-time link to the browser.
+  const startDownload = async (f) => {
+    if (preparing) return
+    setPreparing(f.id)
+    setDlError('')
+    try {
+      const res = await fetch('/api/download-ticket', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: fetchedUrl, option: f.id, title: info.title, ext: f.ext }),
+      })
+      if (!res.ok) throw new Error(await errorMessage(res))
+      const { token } = await res.json()
+      const a = document.createElement('a')
+      a.href = `/api/download/${encodeURIComponent(token)}`
+      a.download = ''
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      setTimeout(() => setPreparing((cur) => (cur === f.id ? null : cur)), 8000)
+    } catch (err) {
+      setDlError(err.message)
+      setPreparing(null)
+    }
   }
 
   const unsupported = url.trim() && looksLikeUrl && !platform
@@ -338,15 +357,17 @@ export default function VideoDownloader() {
                           {f.fps && f.fps > 30 ? ` · ${f.fps}fps` : ''}
                           {size ? ` · ${size}` : ''}
                         </span>
-                        <a className={`vd-dl${preparing === f.id ? ' is-preparing' : ''}`}
-                          href={downloadHref(f)} download onClick={() => startDownload(f.id)}>
+                        <button type="button" className={`vd-dl${preparing === f.id ? ' is-preparing' : ''}`}
+                          disabled={!!preparing && preparing !== f.id} onClick={() => startDownload(f)}>
                           {preparing === f.id ? <><Svg name="check" size={16} /> Starting…</> : <><Svg name="download" size={16} /> Download</>}
-                        </a>
+                        </button>
                       </li>
                     )
                   })}
                 </ul>
-                {preparing && (
+                {dlError ? (
+                  <p className="vd-note is-error" role="alert">{dlError}</p>
+                ) : preparing && (
                   <p className="vd-note">Preparing your file. The download will appear in your browser shortly.</p>
                 )}
               </div>
@@ -357,6 +378,8 @@ export default function VideoDownloader() {
 
       <footer className="vd-footer">
         For personal, non-commercial use. Please respect each platform&apos;s terms of service and the rights of creators.
+        <br />
+        PluckReel is not affiliated with YouTube, TikTok, Meta, X, LinkedIn or Vimeo.
       </footer>
     </div>
   )

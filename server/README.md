@@ -44,6 +44,8 @@ whole `my-app/` folder (minus `node_modules/` and `server/.venv/`) and it will f
 
 ## cPanel "Setup Python App"
 
+For cPanel hosts that offer it (Hostinger's hPanel does not; use the VPS setup in the main README).
+
 | Field                    | Value                          |
 | ------------------------ | ------------------------------ |
 | Python version           | 3.10+                          |
@@ -59,9 +61,16 @@ Passenger is WSGI, so `passenger_wsgi.py` wraps the FastAPI app with `a2wsgi`.
 
 | Var                   | Default | Purpose                                     |
 | --------------------- | ------- | ------------------------------------------- |
-| `RATE_LIMIT`          | `5`     | Requests per IP per window (info + download) |
-| `RATE_WINDOW_SECONDS` | `60`    | Rate-limit window                            |
-| `FFMPEG_PATH`         | bundled | Override the ffmpeg from `imageio-ffmpeg`    |
+| `RATE_LIMIT`           | `5`     | Requests per IP per window (lookups + download starts) |
+| `RATE_WINDOW_SECONDS`  | `60`    | Rate-limit window                                      |
+| `MAX_DOWNLOADS`        | `3`     | Simultaneous downloads, overall                        |
+| `MAX_DOWNLOADS_PER_IP` | `1`     | Simultaneous downloads per visitor                     |
+| `MAX_INFO_LOOKUPS`     | `4`     | Simultaneous video lookups                             |
+| `FFMPEG_PATH`          | bundled | Override the ffmpeg from `imageio-ffmpeg`              |
+
+The visitor IP used for limits is the connecting address. Behind a reverse proxy, run uvicorn
+with `--proxy-headers --forwarded-allow-ips <proxy IP>` (as `deploy/pluckreel.service` does) so
+only the proxy, never a visitor, can set `X-Forwarded-For`.
 
 ## How downloads work
 
@@ -69,7 +78,12 @@ Passenger is WSGI, so `passenger_wsgi.py` wraps the FastAPI app with `a2wsgi`.
 - Sites that only offer separate video/audio streams (YouTube, for all resolutions) are
   merged on the fly: yt-dlp → MPEG-TS → ffmpeg remux (no re-encode) → fragmented MP4.
   Nothing is written to disk. Merging requires AAC audio, which all supported sites provide.
+- The page first asks `/api/download-ticket` for a single-use token (this is where rate and
+  concurrency limits apply, so "busy" shows as a message), then the browser opens
+  `/api/download/{token}`. Unused tickets expire after 60 seconds.
 - If the client disconnects, the yt-dlp/ffmpeg process tree is killed.
+- Thumbnails are fetched by the server and inlined, and the font is bundled, so visitors'
+  browsers never contact the platforms or Google.
 
 ## Maintenance
 
@@ -78,4 +92,4 @@ fail with "This video is not available". `requirements.txt` installs `yt-dlp[def
 solver scripts) and `deno` (the runtime) from pip, so nothing extra is needed on the host.
 
 Sites change often; when extraction breaks, update yt-dlp first:
-`pip install -U yt-dlp` (in cPanel: Run Pip Install again after bumping, or via the venv shell).
+`pip install -U "yt-dlp[default]"` (the VPS setup does this weekly automatically).

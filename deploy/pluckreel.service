@@ -1,0 +1,29 @@
+[Unit]
+Description=PluckReel (FastAPI + yt-dlp)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pluckreel
+Group=pluckreel
+WorkingDirectory=/opt/pluckreel/server
+EnvironmentFile=-/opt/pluckreel/server/.env
+# One worker: the rate limiter and download slots live in process memory.
+# Only Caddy on localhost may set X-Forwarded-For, so visitors can't spoof their IP.
+# No access log: visitors' IP addresses aren't written to disk.
+ExecStart=/opt/pluckreel/server/.venv/bin/python -m uvicorn app:app \
+  --host 127.0.0.1 --port 8000 --workers 1 \
+  --proxy-headers --forwarded-allow-ips 127.0.0.1 \
+  --no-access-log
+Restart=always
+RestartSec=3
+# Kill yt-dlp/ffmpeg children too when the service stops.
+KillMode=control-group
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

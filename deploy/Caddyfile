@@ -1,0 +1,20 @@
+# {DOMAIN} is filled in by setup.sh. Caddy obtains and renews the HTTPS certificate itself.
+{DOMAIN}, www.{DOMAIN} {
+	encode zstd gzip
+
+	# Caddy replaces any X-Forwarded-For a visitor sends with their real IP.
+	reverse_proxy 127.0.0.1:8000 {
+		# Stream downloads straight through instead of buffering them.
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		-Server
+	}
+
+	# No access log: visitors' IP addresses aren't stored.
+}

@@ -33,6 +33,25 @@ Open the URL Vite prints (usually http://localhost:5173). On Linux/macOS use `.v
 To run it as a single app without Vite, `npm run build` and then only the backend: it serves the
 built UI at http://127.0.0.1:8000.
 
+## Deploying (Hostinger VPS or any Ubuntu server)
+
+PluckReel needs a VPS. Shared web hosting (including Hostinger's shared and "cloud" web plans)
+can't run a long-lived Python server.
+
+1. Create an Ubuntu 22.04 or 24.04 VPS (2 vCPU / 8 GB is plenty to start).
+2. Point your domain's `A` record (and `www`) at the VPS IP address.
+3. SSH in and run:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/jayboxengine/pluckreel/main/deploy/setup.sh -o setup.sh
+   sudo bash setup.sh yourdomain.com
+   ```
+
+This installs the app as a `systemd` service behind [Caddy](https://caddyserver.com) (automatic
+HTTPS), opens only ports 22/80/443, and schedules a weekly yt-dlp update. Settings live in
+`/opt/pluckreel/server/.env` (see [deploy/env.example](deploy/env.example)); to deploy new code,
+run `sudo bash /opt/pluckreel/deploy/update.sh`. Logs: `journalctl -u pluckreel -f`.
+
 ## More
 
 - [server/README.md](server/README.md): background running on Windows (scripts in `local/`),
@@ -46,5 +65,14 @@ when extraction breaks, update yt-dlp first (`pip install -U "yt-dlp[default]"`)
 
 ## Disclaimer
 
-For personal, non-commercial use. Respect each platform's terms of service and the rights of
-content creators.
+PluckReel is not affiliated with, endorsed by or sponsored by YouTube, Google, TikTok, Meta,
+X, LinkedIn or Vimeo; their names are used only to describe compatibility.
+
+This software is provided for personal, non-commercial use with content you have the right to
+download. Downloading may breach a platform's terms of service or infringe copyright, and you
+are responsible for how you use it. If you run a public instance, you are responsible for
+complying with the law where you operate it.
+
+## License
+
+[MIT](LICENSE)
