@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Page } from './Layout'
 import './VideoDownloader.css'
 
 // Mirrors ALLOWED_HOSTS in server/utils.py
@@ -222,16 +223,7 @@ export default function VideoDownloader() {
   const shown = tab === 'video' ? videos : audios
 
   return (
-    <div className="vd-page">
-      <div className="vd-bg" aria-hidden="true" />
-
-      <header className="vd-nav">
-        <div className="vd-logo">
-          <span className="vd-logo-mark"><Svg name="download" size={16} /></span>
-          PluckReel
-        </div>
-      </header>
-
+    <Page>
       <main className="vd-main">
         <section className="vd-hero">
           <span className="vd-eyebrow">Fast · Free · No sign-up</span>
@@ -376,11 +368,6 @@ export default function VideoDownloader() {
         </section>
       </main>
 
-      <footer className="vd-footer">
-        For personal, non-commercial use. Please respect each platform&apos;s terms of service and the rights of creators.
-        <br />
-        PluckReel is not affiliated with YouTube, TikTok, Meta, X, LinkedIn or Vimeo.
-      </footer>
-    </div>
+    </Page>
   )
 }

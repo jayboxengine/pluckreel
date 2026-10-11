@@ -58,6 +58,19 @@ if [ ! -f "$APP_DIR/server/.env" ]; then
   install -o "$APP_USER" -g "$APP_USER" -m 600 "$APP_DIR/deploy/env.example" "$APP_DIR/server/.env"
 fi
 
+if [ ! -f "$APP_DIR/server/blocklist.txt" ]; then
+  cat > "$APP_DIR/server/blocklist.txt" <<'EOF'
+# Links blocked after a copyright/abuse report. One per line: a video ID or part of the URL.
+# Changes apply immediately, no restart needed.
+EOF
+  chown "$APP_USER:$APP_USER" "$APP_DIR/server/blocklist.txt"
+fi
+
+echo "==> Log retention (the Privacy Policy promises error logs are kept up to 14 days)"
+install -d /etc/systemd/journald.conf.d
+printf '[Journal]\nMaxRetentionSec=14day\n' > /etc/systemd/journald.conf.d/pluckreel-retention.conf
+systemctl restart systemd-journald
+
 echo "==> Services"
 install -m 644 "$APP_DIR/deploy/pluckreel.service" /etc/systemd/system/pluckreel.service
 install -m 644 "$APP_DIR/deploy/pluckreel-ytdlp-update.service" /etc/systemd/system/

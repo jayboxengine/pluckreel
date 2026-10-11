@@ -13,11 +13,11 @@ import yt_dlp
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from utils import DownloadSlots, RateLimiter, is_allowed_url, safe_filename
+from utils import Blocklist, DownloadSlots, RateLimiter, is_allowed_url, safe_filename
 
 load_dotenv(Path(__file__).parent / ".env")
 
@@ -56,6 +56,9 @@ slots = DownloadSlots(
 info_slots = threading.BoundedSemaphore(int(os.getenv("MAX_INFO_LOOKUPS", "4")))
 
 THUMB_MAX_BYTES = 1_500_000
+
+blocklist = Blocklist(os.getenv("BLOCKLIST_FILE") or Path(__file__).parent / "blocklist.txt")
+BLOCKED_DETAIL = "This video has been made unavailable here at the request of its rights holder."
 
 
 def client_ip(request: Request) -> str:
@@ -113,6 +116,8 @@ def video_info(body: InfoRequest, request: Request):
     check_rate(request)
     if not is_allowed_url(body.url):
         raise HTTPException(status_code=400, detail="Unsupported or missing URL")
+    if blocklist.is_blocked(body.url):
+        raise HTTPException(status_code=451, detail=BLOCKED_DETAIL)
     if not info_slots.acquire(timeout=15):
         raise HTTPException(status_code=503, detail="The server is busy right now. Please try again in a moment.")
     try:
@@ -228,6 +233,8 @@ def download_ticket(body: TicketRequest, request: Request):
     check_rate(request)
     if not is_allowed_url(body.url):
         raise HTTPException(status_code=400, detail="Unsupported URL")
+    if blocklist.is_blocked(body.url):
+        raise HTTPException(status_code=451, detail=BLOCKED_DETAIL)
     if not OPTION_RE.match(body.option):
         raise HTTPException(status_code=400, detail="Invalid format option")
     token, reason = slots.reserve(client_ip(request), body.model_dump())
@@ -302,4 +309,12 @@ def download(token: str):
 _here = Path(__file__).parent
 frontend_path = next((p for p in (_here / "static", _here.parent / "dist") if (p / "index.html").exists()), None)
 if frontend_path:
+    # Client-side pages: serve the app shell, which renders the right page for the path.
+    @app.get("/terms", include_in_schema=False)
+    @app.get("/terms/", include_in_schema=False)
+    @app.get("/privacy", include_in_schema=False)
+    @app.get("/privacy/", include_in_schema=False)
+    def spa_page():
+        return FileResponse(frontend_path / "index.html")
+
     app.mount("/", StaticFiles(directory=frontend_path, html=True), name="static")

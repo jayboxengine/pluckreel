@@ -1,3 +1,4 @@
+import os
 import re
 import secrets
 import threading
@@ -32,6 +33,35 @@ def safe_filename(name: str, ext: str) -> str:
     name = re.sub(r'[\\/:*?"<>|\r\n\t]+', "", name).strip() or "video"
     ext = re.sub(r"[^\w]", "", ext) or "mp4"
     return f"{name[:120]}.{ext}"
+
+
+class Blocklist:
+    """Links blocked after a copyright/abuse report. One entry per line in a text file: a video ID
+    (e.g. dQw4w9WgXcQ) or any other piece of the URL; a link is blocked if it contains an entry.
+    Lines starting with # are comments. The file is re-read whenever it changes, no restart needed."""
+
+    def __init__(self, path):
+        self.path = path
+        self.mtime = None
+        self.entries: list[str] = []
+        self.lock = threading.Lock()
+
+    def _load(self):
+        try:
+            mtime = os.path.getmtime(self.path)
+        except OSError:
+            self.mtime, self.entries = None, []
+            return
+        if mtime != self.mtime:
+            with open(self.path, encoding="utf-8") as f:
+                lines = (line.split("#", 1)[0].strip() for line in f)
+                self.entries = [line for line in lines if len(line) >= 4]
+            self.mtime = mtime
+
+    def is_blocked(self, url: str) -> bool:
+        with self.lock:
+            self._load()
+            return any(e in url for e in self.entries)
 
 
 class RateLimiter:

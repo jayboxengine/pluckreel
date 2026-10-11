@@ -29,3 +29,4 @@ __pycache__/
 server/.env
 server/static/
 server/logs/
+server/blocklist.txt

@@ -85,6 +85,17 @@ only the proxy, never a visitor, can set `X-Forwarded-For`.
 - Thumbnails are fetched by the server and inlined, and the font is bundled, so visitors'
   browsers never contact the platforms or Google.
 
+## Handling copyright and abuse reports
+
+The Terms of Use promise that reported links can be blocked. Add the video's ID (e.g.
+`dQw4w9WgXcQ`) or another distinctive part of its URL to `server/blocklist.txt`, one per line;
+`#` starts a comment. It takes effect immediately, with no restart, and blocked links get a
+"made unavailable at the request of its rights holder" message. On the VPS the file is
+`/opt/pluckreel/server/blocklist.txt` (`sudo -u pluckreel nano /opt/pluckreel/server/blocklist.txt`).
+Override the path with `BLOCKLIST_FILE`.
+
+The contact email and the "last updated" date on the legal pages are in `src/site.js`.
+
 ## Maintenance
 
 YouTube needs a JavaScript runtime to solve its player challenges; without one many videos
