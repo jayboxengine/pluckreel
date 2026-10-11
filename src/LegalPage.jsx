@@ -25,8 +25,8 @@ function Terms() {
 
       <h2>2. Who can use it</h2>
       <p>
-        You must be at least 13 years old to use the Service. If you are under 18, you need the permission of a
-        parent or guardian.
+        You must be at least 16 years old to use the Service. If you are under 18, you may use it only with the
+        permission of a parent or guardian.
       </p>
 
       <h2>3. Acceptable use</h2>
@@ -90,8 +90,8 @@ function Terms() {
       <p>
         To the extent permitted by law, we are not liable for any loss or damage arising from your use of, or
         inability to use, the Service, including loss of data, or any claim arising from content you download.
-        Nothing in these terms limits liability that cannot legally be limited, such as liability for death or
-        personal injury caused by negligence, or for fraud.
+        Nothing in these terms excludes or limits any liability that cannot be excluded or limited under
+        applicable law.
       </p>
 
       <h2>9. Changes to these terms</h2>
@@ -102,8 +102,8 @@ function Terms() {
 
       <h2>10. Governing law</h2>
       <p>
-        These terms are governed by the laws of England and Wales, and the courts of England and Wales have
-        jurisdiction, unless the law of the country where you live says otherwise.
+        These terms are governed by the laws of the Federal Republic of Nigeria. Any dispute arising from them
+        or from your use of the Service is subject to the jurisdiction of the courts of Lagos State, Nigeria.
       </p>
 
       <h2>11. Contact</h2>
@@ -127,8 +127,9 @@ function Privacy() {
 
       <h2>1. Who we are</h2>
       <p>
-        This policy explains how {SITE_NAME} ({SITE_DOMAIN}) handles personal data. The operator of{' '}
-        {SITE_NAME} is the data controller. You can contact us at <Email />.
+        This policy explains how {SITE_NAME} ({SITE_DOMAIN}) handles personal data, in line with the Nigeria
+        Data Protection Act 2023 (&ldquo;NDPA&rdquo;). The operator of {SITE_NAME}, based in Nigeria, is the data
+        controller. You can contact us at <Email />.
       </p>
 
       <h2>2. What we process and why</h2>
@@ -170,8 +171,8 @@ function Privacy() {
       <h2>5. Legal basis</h2>
       <p>
         We process the data above on the basis of our legitimate interests in running the Service, keeping it
-        secure and preventing abuse (UK GDPR Article 6(1)(f)). For emails you send us, the basis is our
-        legitimate interest in responding to you.
+        secure and preventing abuse, as permitted by section 25 of the NDPA. For emails you send us, the basis
+        is our legitimate interest in responding to you.
       </p>
 
       <h2>6. Who we share it with</h2>
@@ -183,24 +184,29 @@ function Privacy() {
 
       <h2>7. International transfers</h2>
       <p>
-        Where our hosting provider processes data outside the UK, it does so under safeguards recognised by UK
-        data protection law, such as standard contractual clauses.
+        Our server is located in a Hostinger data centre outside Nigeria, so personal data that reaches it,
+        such as your IP address, is transferred outside Nigeria. We make these transfers only as permitted by the
+        NDPA&apos;s rules on cross-border transfers, relying on our hosting provider&apos;s data protection
+        commitments, and we keep the data involved to a minimum as described above.
       </p>
 
       <h2>8. Your rights</h2>
       <p>
-        Under UK data protection law you can ask to access, correct or delete your personal data, to restrict or
-        object to how we use it, and to receive a copy of it. Because we keep so little, often we will have
-        nothing to give you. To make a request, email <Email />.
+        Under the NDPA you can ask to access, correct or delete your personal data, to restrict or object to how
+        we use it, and to receive a copy of it. Because we keep so little, often we will have nothing to give
+        you. To make a request, email <Email />.
       </p>
       <p>
-        You can also complain to the Information Commissioner&apos;s Office (ICO) at{' '}
-        <a href="https://ico.org.uk/make-a-complaint/" target="_blank" rel="noreferrer">ico.org.uk</a>.
+        If you are unhappy with how we handle your data, you can complain to the Nigeria Data Protection
+        Commission (NDPC) at{' '}
+        <a href="https://ndpc.gov.ng" target="_blank" rel="noreferrer">ndpc.gov.ng</a>.
       </p>
 
       <h2>9. Children</h2>
       <p>
-        The Service is not intended for children under 13, and we don&apos;t knowingly collect their data.
+        The Service is not intended for anyone under 16, and we don&apos;t knowingly collect their data. Users
+        aged 16 or 17 may use the Service only with the permission of a parent or guardian, as our Terms of Use
+        require.
       </p>
 
       <h2>10. Changes</h2>
