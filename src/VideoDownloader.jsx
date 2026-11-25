@@ -61,6 +61,8 @@ async function errorMessage(res) {
     const body = await res.json()
     // yt-dlp errors look like "[youtube] abc123: This video is not available"
     if (typeof body.detail === 'string') return body.detail.replace(/^\[[^\]]+\]\s*[^:\s]+:\s*/, '')
+    // Validation errors (422) come back as a list; show the first message.
+    if (Array.isArray(body.detail) && body.detail[0]?.msg) return `Request rejected: ${body.detail[0].msg}`
   } catch {
     // not JSON
   }

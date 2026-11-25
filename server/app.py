@@ -1,9 +1,11 @@
 import base64
+import logging
 import os
 import re
 import signal
 import subprocess
 import sys
+import tempfile
 import threading
 from pathlib import Path
 from urllib.parse import quote
@@ -15,7 +17,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from utils import Blocklist, DownloadSlots, RateLimiter, is_allowed_url, safe_filename
 
@@ -48,9 +50,11 @@ limiter = RateLimiter(
     window=float(os.getenv("RATE_WINDOW_SECONDS", "60")),
 )
 # Each download runs yt-dlp (+ ffmpeg when merging), so concurrency is what a small server runs out of.
+log = logging.getLogger("pluckreel")
 slots = DownloadSlots(
     total=int(os.getenv("MAX_DOWNLOADS", "3")),
     per_ip=int(os.getenv("MAX_DOWNLOADS_PER_IP", "1")),
+    on_expire=lambda procs: [kill_tree(p) for p in procs],
 )
 # Metadata lookups are lighter but still a few seconds of CPU and network each.
 info_slots = threading.BoundedSemaphore(int(os.getenv("MAX_INFO_LOOKUPS", "4")))
@@ -107,6 +111,16 @@ def fetch_thumbnail(ydl, url: str | None) -> str | None:
     return f"data:{ctype};base64,{base64.b64encode(data).decode()}"
 
 
+# Facebook titles start with engagement counts: "43 reactions · 12 shares | Actual text".
+_ENGAGEMENT_PREFIX = re.compile(
+    r"^\s*(?:[\d.,]+\s*[KkMm]?\s+(?:reactions?|shares?|comments?|views?|likes?)\s*[·•,]?\s*)+\|\s*")
+
+
+def clean_title(title: str | None) -> str:
+    title = _ENGAGEMENT_PREFIX.sub("", title or "").strip()
+    return title or "video"
+
+
 class InfoRequest(BaseModel):
     url: str = Field(max_length=2048)
 
@@ -144,9 +158,9 @@ def _video_info(url: str):
     raw = info.get("formats") or [info]
     audio = [f for f in raw if has(f.get("acodec")) and not has(f.get("vcodec"))]
     best_audio = max(audio, key=lambda f: (f.get("ext") == "m4a", f.get("abr") or 0), default=None)
-    # Merging needs AAC audio (see /api/download); opus/vorbis-only sources get progressive formats only.
-    aac = [f for f in audio if (f.get("acodec") or "").startswith("mp4a")]
-    merge_audio = max(aac, key=lambda f: f.get("abr") or 0, default=None)
+    # Audio used when merging (sizes only; /api/download picks the same way): AAC preferred.
+    merge_audio = max(audio, key=lambda f: ((f.get("acodec") or "").startswith("mp4a"), f.get("abr") or 0),
+                      default=None)
 
     # One option per resolution. Progressive (video+audio) formats stream as-is;
     # otherwise the best video-only stream at that height is merged with audio on the fly.
@@ -186,7 +200,7 @@ def _video_info(url: str):
         raise HTTPException(status_code=422, detail="No downloadable formats found for this video")
 
     return {
-        "title": info.get("title") or "video",
+        "title": clean_title(info.get("title")),
         "thumbnail": thumbnail,
         "duration": info.get("duration"),
         "uploader": info.get("uploader"),
@@ -203,7 +217,8 @@ _NEW_GROUP = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name 
 
 
 def spawn(cmd, **kw):
-    return subprocess.Popen(cmd, stderr=subprocess.DEVNULL, **_NEW_GROUP, **kw)
+    kw.setdefault("stderr", subprocess.DEVNULL)
+    return subprocess.Popen(cmd, **_NEW_GROUP, **kw)
 
 
 def kill_tree(p: subprocess.Popen):
@@ -223,8 +238,15 @@ def kill_tree(p: subprocess.Popen):
 class TicketRequest(BaseModel):
     url: str = Field(max_length=2048)
     option: str = Field(max_length=64)
-    title: str = Field(default="video", max_length=300)
+    title: str = "video"
     ext: str = Field(default="mp4", max_length=10)
+
+    @field_validator("title", mode="before")
+    @classmethod
+    def _shorten_title(cls, v):
+        # Only used for the file name (cut to 120 chars there); long titles such as Facebook
+        # post text must not make the request fail.
+        return str(v or "video")[:300]
 
 
 @app.post("/api/download-ticket")
@@ -245,56 +267,85 @@ def download_ticket(body: TicketRequest, request: Request):
     return {"token": token}
 
 
+REMUX_TO_MP4 = [FFMPEG, "-loglevel", "error", "-i", "pipe:0", "-map", "0", "-c", "copy", "-f", "mp4",
+                "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"]
+
+
+def _err_tail(f, limit=1500) -> str:
+    try:
+        f.seek(0)
+        return f.read().decode("utf-8", "replace").strip()[-limit:]
+    except Exception:
+        return ""
+
+
 @app.get("/api/download/{token}")
-def download(token: str):
+async def download(token: str):
     job = slots.claim(token)
     if not job:
         raise HTTPException(status_code=410, detail="This download link has expired. Please click Download again.")
     m = OPTION_RE.match(job["option"])
     url, ext = job["url"], job["ext"]
+    merge_height = m.group(3)
 
     # Use this interpreter's yt_dlp so it works inside the host's virtualenv without PATH tweaks.
     ytdlp = [sys.executable, "-m", "yt_dlp", "--no-playlist", "--quiet", "--no-part",
              "--ffmpeg-location", FFMPEG, *JS_RUNTIME_ARGS, "-o", "-"]
-    merge_height = m.group(3)
-    if merge_height:
-        ext, media_type = "mp4", "video/mp4"
-    else:
-        media_type = "application/octet-stream"
+    errs = [tempfile.TemporaryFile() for _ in range(2)]
+    procs = []
+    try:
+        if merge_height:
+            h = merge_height
+            # Prefer H.264 + AAC (plays everywhere); otherwise take whatever the site has
+            # (Instagram and YouTube's top resolutions are often VP9 or AV1 only).
+            selector = (f"bv*[height={h}][vcodec^=avc1]+ba[acodec^=mp4a]/bv*[height={h}][vcodec^=avc1]+ba"
+                        f"/bv*[height={h}]+ba[acodec^=mp4a]/bv*[height={h}]+ba/b[height={h}]")
+            # yt-dlp merges to stdout as Matroska here (for an .mp4 target it would use MPEG-TS,
+            # which can't carry VP9/AV1, so the video track was lost). ffmpeg then remuxes,
+            # without re-encoding, into fragmented MP4, which can be written to a pipe.
+            src = spawn(ytdlp + ["--merge-output-format", "mkv", "-f", selector, url],
+                        stdout=subprocess.PIPE, stderr=errs[0])
+            procs.append(src)
+            proc = spawn(REMUX_TO_MP4, stdin=src.stdout, stdout=subprocess.PIPE, stderr=errs[1])
+            src.stdout.close()  # so yt-dlp gets SIGPIPE if ffmpeg exits
+            procs.insert(0, proc)
+            ext, media_type = "mp4", "video/mp4"
+        else:
+            proc = spawn(ytdlp + ["-f", m.group(2), url], stdout=subprocess.PIPE, stderr=errs[0])
+            procs.append(proc)
+            media_type = "application/octet-stream"
+        # If the client vanishes before streaming starts, the slot expiry kills these.
+        slots.attach(token, procs)
+
+        # Wait for the first bytes before answering, so a failed download shows as a failed
+        # download in the browser instead of an empty file.
+        first = await run_in_threadpool(proc.stdout.read, 64 * 1024)
+    except BaseException:
+        for p in procs:
+            kill_tree(p)
+        slots.release(token)
+        raise
+    if not first:
+        for p in procs:
+            kill_tree(p)
+        slots.release(token)
+        log.warning("Download failed for %s (%s): %s | %s", url, job["option"],
+                    _err_tail(errs[0]), _err_tail(errs[1]))
+        raise HTTPException(status_code=502, detail="The download failed. The site may be blocking requests right now; please try again later.")
 
     async def stream():
-        # Processes start only once the response is actually streaming, so a client that
-        # disconnects early never leaves yt-dlp running; an unused slot just expires.
+        # Async generator: on client disconnect the server cancels it at the await,
+        # so the finally block runs (a sync generator would stay blocked in read()).
         slots.start(token)
-        procs = []
         try:
-            if merge_height:
-                h = merge_height
-                selector = (f"bv*[height={h}][vcodec^=avc1]+ba[acodec^=mp4a]"
-                            f"/bv*[height={h}]+ba[acodec^=mp4a]/b[height={h}]")
-                # yt-dlp muxes merged formats to stdout as MPEG-TS; remux (no re-encode) into
-                # fragmented MP4, which can be written to a pipe and plays in any player.
-                # TS carries AAC as ADTS, which MP4 rejects without aac_adtstoasc -- hence AAC-only audio.
-                src = spawn(ytdlp + ["-f", selector, url], stdout=subprocess.PIPE)
-                procs.append(src)
-                proc = spawn(
-                    [FFMPEG, "-loglevel", "error", "-i", "pipe:0", "-map", "0", "-c", "copy",
-                     "-bsf:a", "aac_adtstoasc", "-f", "mp4",
-                     "-movflags", "frag_keyframe+empty_moov+default_base_moof", "pipe:1"],
-                    stdin=src.stdout, stdout=subprocess.PIPE,
-                )
-                src.stdout.close()  # so yt-dlp gets SIGPIPE if ffmpeg exits
-                procs.insert(0, proc)
-            else:
-                proc = spawn(ytdlp + ["-f", m.group(2), url], stdout=subprocess.PIPE)
-                procs.append(proc)
-            # Async generator: on client disconnect the server cancels it at the await,
-            # so the finally block runs (a sync generator would stay blocked in read()).
+            yield first
             while chunk := await run_in_threadpool(proc.stdout.read, 64 * 1024):
                 yield chunk
         finally:
             for p in procs:
                 kill_tree(p)
+            for f in errs:
+                f.close()
             slots.release(token)
 
     filename = safe_filename(job["title"], ext)

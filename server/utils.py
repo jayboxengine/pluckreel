@@ -99,7 +99,8 @@ class DownloadSlots:
     never starts (ticket unused, or client gone before the first byte) expire after `ttl`.
     """
 
-    def __init__(self, total: int, per_ip: int, ttl: float = 60):
+    def __init__(self, total: int, per_ip: int, ttl: float = 60, on_expire=None):
+        self.on_expire = on_expire  # called with a slot's processes when it expires unstarted
         self.total = total
         self.per_ip = per_ip
         self.ttl = ttl
@@ -108,7 +109,9 @@ class DownloadSlots:
 
     def _purge(self, now: float):
         for t in [t for t, s in self.slots.items() if s["state"] != "active" and now - s["at"] > self.ttl]:
-            del self.slots[t]
+            procs = self.slots.pop(t).get("procs")
+            if procs and self.on_expire:
+                self.on_expire(procs)
 
     def reserve(self, ip: str, job: dict) -> tuple[str | None, str | None]:
         """Returns (token, None) or (None, reason) where reason is 'busy' or 'per_ip'."""
@@ -132,6 +135,11 @@ class DownloadSlots:
                 return None
             s["state"] = "claimed"
             return s["job"]
+
+    def attach(self, token: str, procs: list):
+        with self.lock:
+            if token in self.slots:
+                self.slots[token]["procs"] = procs
 
     def start(self, token: str):
         with self.lock:
