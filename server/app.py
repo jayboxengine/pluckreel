@@ -210,10 +210,14 @@ def _video_info(url: str):
 
 OPTION_RE = re.compile(r"^(p|a)-([\w-]+)$|^m-(\d{2,4})$")
 
+# Windows: the server usually runs windowless (pythonw), so every console program it starts
+# (yt-dlp, ffmpeg, taskkill) would otherwise pop up its own console window.
+_NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}
+
 # Each download runs in its own process group so the whole tree (yt-dlp plus the
 # ffmpeg it spawns for merging) can be killed when the client goes away.
-_NEW_GROUP = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt"
-              else {"start_new_session": True})
+_NEW_GROUP = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.CREATE_NO_WINDOW}
+              if os.name == "nt" else {"start_new_session": True})
 
 
 def spawn(cmd, **kw):
@@ -225,7 +229,7 @@ def kill_tree(p: subprocess.Popen):
     if p.poll() is None:
         try:
             if os.name == "nt":
-                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True)
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(p.pid)], capture_output=True, **_NO_WINDOW)
             else:
                 os.killpg(p.pid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
