@@ -26,10 +26,12 @@ Scripts in `../local/`:
 | Script                   | What it does                                                  |
 | ------------------------ | ------------------------------------------------------------- |
 | `PluckReel.bat`          | Starts the server if needed and opens the app in your browser |
-| `enable-autostart.bat`   | Starts the server hidden at every Windows login               |
-| `disable-autostart.bat`  | Removes the login autostart                                   |
+| `enable-autostart.bat`   | Keeps it running: starts at login, restarts within 5 min if it stops |
+| `disable-autostart.bat`  | Removes the autostart task                                    |
 | `stop-server.bat`        | Stops the background server                                   |
 
+Autostart is a Windows scheduled task named "PluckReel Server" (see `local/install-autostart.ps1`),
+not a Startup-folder shortcut, so Startup Apps settings and cleanup tools don't switch it off.
 Logs go to `server/logs/server.log`. After changing the UI run `npm run build`; after
 changing Python code or upgrading packages, run `stop-server.bat` then start it again.
 
@@ -75,9 +77,14 @@ only the proxy, never a visitor, can set `X-Forwarded-For`.
 ## How downloads work
 
 - **Progressive** formats (audio+video in one file) and **audio** stream straight from yt-dlp.
-- Sites that only offer separate video/audio streams (YouTube, for all resolutions) are
-  merged on the fly: yt-dlp → MPEG-TS → ffmpeg remux (no re-encode) → fragmented MP4.
-  Nothing is written to disk. Merging requires AAC audio, which all supported sites provide.
+- Sites that only offer separate video/audio streams (YouTube, Instagram, Facebook) are
+  merged on the fly: yt-dlp → Matroska → ffmpeg remux (no re-encode) → fragmented MP4.
+  Nothing is written to disk. H.264 + AAC is preferred because it plays everywhere; where a
+  site only has VP9 or AV1 (often Instagram, and YouTube above 1080p), the MP4 contains that
+  codec, which needs a modern player (VLC, browsers, or Windows' free VP9/AV1 extensions).
+  Matroska is used because yt-dlp would otherwise pipe MPEG-TS, which can't carry VP9/AV1.
+- The server waits for the first bytes before answering, so a failed download (e.g. the site
+  blocking requests) shows as a failed download, not an empty file; the reason is logged.
 - The page first asks `/api/download-ticket` for a single-use token (this is where rate and
   concurrency limits apply, so "busy" shows as a message), then the browser opens
   `/api/download/{token}`. Unused tickets expire after 60 seconds.
