@@ -32,6 +32,8 @@ Scripts in `../local/`:
 
 Autostart is a Windows scheduled task named "PluckReel Server" (see `local/install-autostart.ps1`),
 not a Startup-folder shortcut, so Startup Apps settings and cleanup tools don't switch it off.
+A second task, "PluckReel yt-dlp update", runs `local/update_ytdlp.py` every Monday (or at the next
+chance if the PC was off), restarting the server only if yt-dlp changed; see `server/logs/update.log`.
 Logs go to `server/logs/server.log`. After changing the UI run `npm run build`; after
 changing Python code or upgrading packages, run `stop-server.bat` then start it again.
 
